@@ -1,38 +1,1413 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="da">
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Opgavekortlægning · Vicuras</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;400;500;700;800&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  /* Vicuras brand tokens — from the Vicuras Design System (tokens.json).
+     Page uses the "Forest & mist" approved colour combination (guidelines/colors-combinations)
+     — the deep, moody pairing seen on vicuras.dk itself — with eggshell cards floating on top
+     (the brand's "one or two grounds per layout" rule: forest page + eggshell card = the two
+     grounds) and rose reserved as the accent pop, as on the site's hero squiggle and highlights. */
+  :root{
+    --bg:#0e5642;           /* vic-forest — surface-card-forest, used here as the page ground */
+    --bg-ink:#e0e5dd;       /* vic-mist — text-on-forest, ink directly on the forest page */
+    --bg-ink-muted:rgba(224,229,221,0.7);
+    --logo-on-bg:#fffbf1;   /* vic-eggshell — approved Logo colour on a dark ground */
+    --surface:#fffbf1;      /* vic-eggshell — surface-card, floats on the forest page */
+    --surface-alt:#e0e5dd;  /* vic-mist — quiet fills inside cards */
+    --border:rgba(35,32,73,0.1);        /* hairline */
+    --border-strong:rgba(35,32,73,0.3); /* hairline-visible */
+    --border-on-bg:rgba(224,229,221,0.25); /* a light hairline for chrome sitting on the forest page */
+    --text:#232049;         /* vic-midnight — text-heading / text-body (on eggshell cards) */
+    --text-muted:#707070;   /* vic-grey — text-muted */
+    --brand:#772e4b;        /* vic-berry — text-accent / action-primary / link-color */
+    --brand-hover:#232049;  /* vic-midnight — link-color-hover */
+    --brand-soft:#e0e5dd;   /* vic-mist — quiet hover fill */
+    --pink:#dab5cf;         /* vic-rose — the accent pop: badges, checkboxes, highlights */
+    --pink-soft:#f9f0f8;    /* vic-rose-wash */
+    --danger:#fb6c66;       /* vic-coral */
+    --shadow:inset 0 0 0 0.5px rgba(35,32,73,0.3); /* hairline-visible — reads clearly on the forest page ground */
+    --radius:32px;          /* radius-card */
+    --radius-nested:16px;   /* radius-nested */
+    --radius-button:18px;   /* radius-button */
+    --radius-pill:39px;     /* radius-pill */
+    --radius-tile:6px;      /* radius-tile */
+    --ease:cubic-bezier(0.4,0,0.2,1); /* ease-standard */
+    --dur:200ms;            /* dur-base */
+  }
 
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
+  body{
+    background:var(--bg);
+    color:var(--bg-ink);
+    font-family:"Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    margin:0;
+  }
+  *{box-sizing:border-box;}
+  ::selection{ background:var(--pink); color:var(--brand); }
+  .page{
+    max-width:900px;
+    margin:0 auto;
+    padding-inline:20px;
+    padding-block:28px 96px;
+  }
+  h1,h2,h3,h4{
+    font-family:inherit;
+    font-weight:400;
+    text-wrap:balance;
+    margin:0;
+  }
 
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
+  /* Top bar */
+  .topbar{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    margin-bottom:28px;
+  }
+  .brand{
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .brand .logo-mark{
+    width:24px;
+    height:23px;
+    flex:none;
+  }
+  .brand .sub{
+    font-size:1.05rem;
+    color:var(--bg-ink);
+    font-weight:500;
+  }
+  .tabs{
+    display:flex;
+    background:rgba(255,251,241,0.1);
+    border:1px solid var(--border-on-bg);
+    border-radius:999px;
+    padding:3px;
+    gap:2px;
+  }
+  .tab{
+    border:0;
+    background:transparent;
+    color:var(--bg-ink-muted);
+    font:inherit;
+    font-weight:600;
+    font-size:.9rem;
+    padding:8px 16px;
+    border-radius:999px;
+    cursor:pointer;
+  }
+  .tab.active{
+    background:var(--surface);
+    color:var(--brand);
+    box-shadow:var(--shadow);
+  }
 
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
-  <base href="/">
+  .lede{
+    color:var(--text-muted);
+    font-size:1rem;
+    line-height:1.55;
+    max-width:64ch;
+    margin-bottom:20px;
+  }
 
-  <meta charset="UTF-8">
-  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  .card{
+    background:var(--surface);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+  }
 
-  <!-- iOS meta tags & icons -->
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="rabbitrating">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  .howto{
+    background:var(--brand-soft);
+    color:var(--text);
+    border-radius:var(--radius);
+    padding:14px 18px;
+    font-size:.9rem;
+    line-height:1.55;
+    margin-bottom:22px;
+  }
+  .howto strong{ color:var(--brand); }
 
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
+  /* Intro / onboarding */
+  .intro{
+    background:var(--surface);
+    box-shadow:var(--shadow);
+    border-radius:var(--radius);
+    padding:22px 24px 24px;
+    margin-bottom:22px;
+  }
+  .intro-eyebrow{
+    display:block;
+    font-size:.78rem;
+    font-weight:800;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:var(--brand);
+    margin-bottom:8px;
+  }
+  .intro-heading{
+    font-weight:400;
+    font-size:1.5rem;
+    line-height:1.3;
+    color:var(--text);
+    margin-bottom:10px;
+  }
+  /* Section headers that sit directly on the forest page (not inside a card) —
+     mist heading ink + rose eyebrow, matching vicuras.dk's own dark sections. */
+  #view-overview > .intro-eyebrow{ color:var(--pink); }
+  #view-overview > .intro-heading{ color:var(--bg-ink); }
+  #view-overview > .lede{ color:var(--bg-ink-muted); }
+  .intro-why{
+    font-size:.98rem;
+    line-height:1.6;
+    color:var(--text);
+    margin-bottom:18px;
+    max-width:66ch;
+  }
+  .intro-steps{
+    list-style:none;
+    margin:0 0 18px;
+    padding:0;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+  .intro-steps li{
+    display:flex;
+    gap:12px;
+    align-items:flex-start;
+  }
+  .intro-steps .num{
+    flex:none;
+    width:26px;
+    height:26px;
+    border-radius:50%;
+    background:var(--brand);
+    color:var(--pink);
+    font-size:.85rem;
+    font-weight:700;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .intro-steps .txt{
+    font-size:.92rem;
+    line-height:1.5;
+    color:var(--text);
+    padding-top:3px;
+  }
+  .intro-steps .txt b{ font-weight:700; color:var(--text); }
+  .intro-example{
+    background:var(--surface-alt);
+    border-radius:var(--radius-nested);
+    padding:14px 16px;
+    font-size:.86rem;
+    line-height:1.6;
+    color:var(--text);
+  }
+  .intro-example .eyebrow{
+    display:block;
+    font-size:.72rem;
+    font-weight:800;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:var(--brand);
+    margin-bottom:6px;
+  }
+  .intro-example .ex-task{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-top:4px;
+  }
+  .intro-example .ex-dot{
+    width:6px; height:6px; border-radius:50%; background:var(--text-muted); flex:none;
+  }
+  .intro-example .ex-task.flagged .ex-dot{ background:var(--brand); }
+  .intro-example .ex-task.flagged{ color:var(--brand); font-weight:600; }
+  .intro-note{
+    font-size:.85rem;
+    color:var(--text-muted);
+    margin-top:14px;
+    line-height:1.5;
+  }
 
-  <title>rabbitrating</title>
-  <link rel="manifest" href="manifest.json">
+  /* Name field */
+  .name-card{
+    padding:18px 20px;
+    margin-bottom:20px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  label.field-label{
+    font-size:.82rem;
+    font-weight:600;
+    color:var(--text-muted);
+    text-transform:uppercase;
+    letter-spacing:.05em;
+  }
+  input[type=text], input.plain-input{
+    font:inherit;
+    font-size:1rem;
+    color:var(--text);
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius-nested);
+    padding:9px 12px;
+    width:100%;
+  }
+  input[type=text]:focus, input.plain-input:focus, .tab:focus-visible, button:focus-visible{
+    outline:2px solid var(--brand);
+    outline-offset:1px;
+  }
+  #name-input{ max-width:340px; font-size:1.05rem; }
+  .resume-note{
+    font-size:.85rem;
+    color:var(--brand);
+    background:var(--brand-soft);
+    border-radius:8px;
+    padding:6px 10px;
+    display:inline-block;
+    width:fit-content;
+  }
+
+  /* Areas */
+  #areas{ display:flex; flex-direction:column; gap:16px; }
+  .area{
+    padding:16px 18px 18px;
+  }
+  .area-head{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom:12px;
+  }
+  .area-index{
+    font-weight:700;
+    color:var(--brand);
+    font-size:1.1rem;
+    min-width:1.4em;
+  }
+  .area-name{
+    font-weight:600;
+    font-size:1.05rem;
+    flex:1;
+    border:1px solid transparent;
+    background:transparent;
+    padding:6px 8px;
+    border-radius:8px;
+  }
+  .area-name:hover, .area-name:focus{
+    border-color:var(--border);
+    background:var(--surface-alt);
+  }
+  .tasks-label{
+    font-size:.72rem;
+    font-weight:800;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    color:var(--text-muted);
+    margin:2px 0 8px 1.9em;
+  }
+  .tasks{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    margin-left:1.9em;
+  }
+  .task{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:8px;
+    background:var(--surface-alt);
+    border-radius:var(--radius-nested);
+    padding:8px 10px;
+  }
+  .task-text{
+    flex:1 1 200px;
+    background:transparent;
+    border:0;
+    font:inherit;
+    color:var(--text);
+    padding:4px 2px;
+    min-width:0;
+  }
+  .task-text:focus{ outline:none; }
+  .task-text::placeholder{ color:var(--text-muted); }
+  .ai-check{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    font-size:.85rem;
+    font-weight:600;
+    color:var(--text-muted);
+    white-space:nowrap;
+    cursor:pointer;
+    user-select:none;
+  }
+  .ai-check input{
+    width:16px;
+    height:16px;
+    accent-color:var(--pink);
+    cursor:pointer;
+  }
+  .ai-check.on{ color:var(--brand); }
+  .icon-btn{
+    border:0;
+    background:transparent;
+    color:var(--text-muted);
+    cursor:pointer;
+    font-size:1rem;
+    line-height:1;
+    padding:4px 6px;
+    border-radius:6px;
+  }
+  .icon-btn{ transition:color var(--dur) var(--ease), opacity var(--dur) var(--ease); }
+  .icon-btn:hover{ color:var(--danger); opacity:.82; }
+  .add-task{
+    margin-left:1.9em;
+    margin-top:2px;
+    align-self:flex-start;
+    border:1px dashed var(--border-strong);
+    background:transparent;
+    color:var(--brand);
+    font:inherit;
+    font-weight:500;
+    font-size:.88rem;
+    padding:7px 12px;
+    border-radius:var(--radius-button);
+    cursor:pointer;
+    transition:opacity var(--dur) var(--ease);
+  }
+  .add-task:hover{ opacity:.7; }
+
+  #add-area{
+    border:1px dashed var(--border-strong);
+    background:var(--surface);
+    color:var(--brand);
+    font:inherit;
+    font-weight:500;
+    padding:12px;
+    border-radius:var(--radius-button);
+    cursor:pointer;
+    width:100%;
+    margin-top:16px;
+    transition:opacity var(--dur) var(--ease);
+  }
+  #add-area:hover{ opacity:.7; }
+
+  /* Save bar — a CtaBlock-style slab (radius-pill) housing the button (radius-button) */
+  .save-bar{
+    position:sticky;
+    bottom:16px;
+    margin-top:24px;
+    display:flex;
+    align-items:center;
+    gap:12px;
+    background:var(--surface);
+    box-shadow:var(--shadow);
+    border-radius:var(--radius-pill);
+    padding:8px 8px 8px 20px;
+  }
+  .save-bar .status{
+    flex:1;
+    font-size:.88rem;
+    color:var(--text-muted);
+  }
+  .btn-primary{
+    font-family:inherit;
+    font-weight:500;
+    font-size:19.559px;
+    line-height:1.2;
+    background:var(--brand);
+    color:var(--pink);
+    border:0;
+    border-radius:var(--radius-button);
+    padding:7.334px 29.338px;
+    cursor:pointer;
+    transition:opacity var(--dur) var(--ease);
+  }
+  .btn-primary:hover{ opacity:.82; }
+  .btn-primary:disabled{ opacity:.4; cursor:default; }
+
+  /* Overview */
+  .stats{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(140px,1fr));
+    gap:12px;
+    margin-bottom:20px;
+  }
+  .stat{
+    background:var(--surface);
+    border-radius:var(--radius-nested);
+    padding:14px 16px;
+    box-shadow:var(--shadow);
+  }
+  .stat-value{
+    font-size:1.9rem;
+    font-weight:500;
+    font-variant-numeric:tabular-nums;
+    color:var(--brand);
+  }
+  .stat-label{
+    font-size:.82rem;
+    color:var(--text-muted);
+    margin-top:2px;
+  }
+  .controls-row{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    margin-bottom:18px;
+  }
+  .filter-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:.92rem;
+    color:var(--bg-ink);
+  }
+  .controls-right{
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .seg{
+    display:flex;
+    background:var(--surface-alt);
+    border:1px solid var(--border);
+    border-radius:999px;
+    padding:3px;
+    gap:2px;
+  }
+  .seg button{
+    border:0;
+    background:transparent;
+    color:var(--text-muted);
+    font:inherit;
+    font-weight:600;
+    font-size:.85rem;
+    padding:6px 13px;
+    border-radius:999px;
+    cursor:pointer;
+  }
+  .seg button.active{
+    background:var(--surface);
+    color:var(--brand);
+    box-shadow:var(--shadow);
+  }
+  .btn-outline{
+    font:inherit;
+    font-weight:500;
+    font-size:.85rem;
+    background:var(--surface);
+    color:var(--brand);
+    border:0;
+    box-shadow:var(--shadow);
+    border-radius:var(--radius-button);
+    padding:9px 16px;
+    cursor:pointer;
+    transition:opacity var(--dur) var(--ease);
+  }
+  .btn-outline:hover{ opacity:.75; }
+  .btn-outline:disabled{ opacity:.4; cursor:default; }
+  #employee-list{ display:flex; flex-direction:column; gap:10px; }
+  .emp-card{ padding:0; overflow:hidden; }
+  .emp-card > summary{
+    list-style:none;
+    cursor:pointer;
+    padding:14px 20px;
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:6px 14px;
+  }
+  .emp-card > summary::-webkit-details-marker{ display:none; }
+  .emp-card > summary::before{
+    content:"▸";
+    display:inline-block;
+    font-size:.75rem;
+    color:var(--text-muted);
+    transition:transform .15s ease;
+    flex:none;
+  }
+  .emp-card[open] > summary::before{ transform:rotate(90deg); }
+  .emp-card > summary:hover{ background:var(--surface-alt); }
+  .emp-head{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:baseline;
+    gap:6px 14px;
+  }
+  .emp-head h3{ font-size:1.15rem; }
+  .emp-meta{ font-size:.82rem; color:var(--text-muted); }
+  .area-chips{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+    margin-left:auto;
+  }
+  .area-chip{
+    font-size:.78rem;
+    font-weight:600;
+    color:var(--text);
+    background:var(--surface-alt);
+    border:1px solid var(--border);
+    border-radius:999px;
+    padding:3px 11px;
+    white-space:nowrap;
+  }
+  .emp-card-body{
+    padding:0 20px 18px;
+    border-top:1px solid var(--border);
+    padding-top:14px;
+  }
+  .ov-area{ margin-bottom:10px; }
+  .ov-area:last-child{ margin-bottom:0; }
+  .ov-area h4{
+    font-weight:800;
+    font-size:.82rem;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    color:var(--text-muted);
+    margin-bottom:6px;
+  }
+  .ov-tasks{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:4px; }
+  .ov-task{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    padding:7px 10px;
+    border-radius:8px;
+  }
+  .ov-task.flagged{ background:var(--surface-alt); }
+  .badges{ display:flex; gap:6px; }
+  .badge{
+    font-size:.74rem;
+    font-weight:700;
+    border-radius:999px;
+    padding:3px 9px;
+  }
+  .badge.pink{ background:var(--pink); color:var(--brand); }
+
+  /* Tree view */
+  .tree-root{
+    background:var(--surface);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:18px 20px 20px;
+  }
+  .tree-root > .tree-root-label{
+    font-weight:500;
+    font-size:1.15rem;
+    color:var(--brand);
+    margin-bottom:10px;
+    display:block;
+  }
+  .tree ul{
+    list-style:none;
+    margin:0;
+    padding-left:22px;
+    border-left:1px solid var(--border);
+  }
+  .tree > ul{ padding-left:0; border-left:0; }
+  .tree li{ position:relative; margin:2px 0; }
+  .tree details > summary{
+    cursor:pointer;
+    list-style:none;
+    padding:4px 8px 4px 6px;
+    border-radius:7px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .tree details > summary::-webkit-details-marker{ display:none; }
+  .tree details > summary:hover{ background:var(--surface-alt); }
+  .tree details > summary::before{
+    content:"▸";
+    font-size:.7rem;
+    color:var(--text-muted);
+    transition:transform .12s ease;
+    display:inline-block;
+  }
+  .tree details[open] > summary::before{ transform:rotate(90deg); }
+  .node-emp{ font-weight:700; }
+  .node-emp .count{ font-weight:500; color:var(--text-muted); font-size:.82rem; }
+  .node-area{ font-weight:600; color:var(--text); }
+  .node-area .count{ font-weight:500; color:var(--text-muted); font-size:.8rem; }
+  .tree-task{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:4px 8px 4px 20px;
+    font-size:.92rem;
+    color:var(--text);
+  }
+  .tree-task .dot{
+    width:5px; height:5px; border-radius:50%;
+    background:var(--border);
+    flex:none;
+  }
+  .tree-task.flagged .dot{ background:var(--brand); }
+  .tree-task.flagged{ color:var(--brand); }
+  /* Admin login gate */
+  .gate-card{
+    padding:24px 24px 22px;
+    max-width:420px;
+    margin:12px auto 0;
+  }
+  .gate-row{
+    display:flex;
+    gap:8px;
+    margin-top:14px;
+  }
+  .gate-row input{ flex:1; }
+  .admin-error{
+    color:var(--danger);
+    font-size:.85rem;
+    margin:10px 0 0;
+  }
+  .reset-zone{
+    margin-top:24px;
+    padding-top:16px;
+    border-top:1px solid var(--border-on-bg);
+    text-align:right;
+  }
+  .btn-danger{
+    font:inherit;
+    font-weight:500;
+    font-size:.82rem;
+    background:transparent;
+    color:var(--bg-ink-muted);
+    border:0;
+    padding:6px 4px;
+    cursor:pointer;
+    transition:color var(--dur) var(--ease);
+  }
+  .btn-danger:hover{ color:var(--danger); }
+  .btn-danger:disabled{ opacity:.5; cursor:default; }
+
+  .empty{
+    color:var(--text-muted);
+    background:var(--surface);
+    border:1px dashed var(--border-strong);
+    border-radius:var(--radius);
+    padding:28px 22px;
+    text-align:center;
+    max-width:52ch;
+    margin:20px auto;
+    line-height:1.55;
+  }
+
+  @media (max-width:480px){
+    .tasks{ margin-left:0; }
+    .tasks-label{ margin-left:0; }
+    .add-task{ margin-left:0; }
+    .area-index{ display:none; }
+  }
+</style>
 </head>
 <body>
-  <script src="flutter_bootstrap.js" async></script>
+<div class="page">
+  <header class="topbar">
+    <div class="brand">
+      <svg class="logo-mark" viewBox="0 0 196.333 184.447" fill="#fffbf1" aria-hidden="true"><path d="M 97.574 184.443 C 89.233 184.443 76.966 181.782 65.9 169.121 C 51.737 152.911 53.882 129.338 56.86 96.716 L 57.212 92.858 C 58.58 77.73 59.872 63.437 59.245 52.938 C 59.078 50.9 57.941 40.924 51.488 40.268 C 51.265 40.246 51.046 40.234 50.823 40.234 C 43.494 40.234 34.905 52.646 29.082 61.983 L 22.17 73.066 L 0 59.237 L 6.912 48.154 C 13.82 37.076 28.185 14.048 50.334 14.048 C 52.076 14.048 53.865 14.189 55.646 14.468 C 75.846 17.639 84.569 38.792 85.32 51.376 C 86.066 63.836 84.689 79.077 83.226 95.214 L 82.793 99.904 C 80.87 120.602 78.695 144.063 85.569 151.932 C 89.327 156.236 93.236 158.325 97.514 158.325 C 97.956 158.325 98.385 158.304 98.792 158.27 C 104.962 157.776 112.814 153.614 120.902 146.543 C 128.123 140.227 133.551 133.311 134.92 131.123 C 154.618 99.638 165.036 70.813 168.696 37.663 C 168.76 36.955 170.236 21.033 170.206 12.533 L 170.159 0 L 196.285 0 L 196.332 12.439 C 196.366 22.44 194.676 40.384 194.659 40.564 C 190.548 77.785 178.955 110 157.068 144.981 C 153.979 149.92 146.728 158.669 138.099 166.212 C 125.459 177.264 112.93 183.353 100.865 184.314 C 99.779 184.4 98.672 184.447 97.574 184.447 L 97.57 184.447 L 97.574 184.443 Z" fill-rule="nonzero"/></svg>
+      <span class="sub">opgavekortlægning</span>
+    </div>
+    <nav class="tabs">
+      <button class="tab active" data-view="fill" type="button">Udfyld</button>
+      <button class="tab" data-view="overview" type="button">Overblik</button>
+    </nav>
+  </header>
+
+  <div id="conn-banner" class="howto" hidden></div>
+
+  <section id="view-fill" class="view">
+    <div class="intro">
+      <span class="intro-eyebrow">Opgavekortlægning</span>
+      <h2 class="intro-heading">Sådan udfylder du</h2>
+      <p class="intro-why">Tilføj dine <b>ansvarsområder</b> herunder (typisk 3-5 stykker), og skriv dine konkrete <b>opgaver ind under hvert område</b>. Sæt flueben ved "AI kan overtage", hvis en opgave kan klares af AI — og tryk <b>Gem svar</b> forneden, når du er færdig.</p>
+    </div>
+
+    <div class="card name-card">
+      <label class="field-label" for="name-input">Dit navn</label>
+      <input type="text" id="name-input" placeholder="Fx Andreas Vicuras" autocomplete="off">
+      <span id="resume-note" class="resume-note" hidden>Vi fandt dit tidligere svar og har hentet det ind – ret til og gem igen for at opdatere.</span>
+    </div>
+
+    <div id="areas"></div>
+    <button id="add-area" type="button">+ Tilføj ansvarsområde</button>
+
+    <div class="save-bar">
+      <span class="status" id="save-status">Ikke gemt endnu</span>
+      <button class="btn-primary" id="save-btn" type="button">Gem svar</button>
+    </div>
+  </section>
+
+  <section id="view-overview" class="view" hidden>
+    <div id="admin-gate" class="card gate-card">
+      <span class="intro-eyebrow">Kun for ledelsen</span>
+      <h2 class="intro-heading">Log ind for at se overblikket</h2>
+      <p class="intro-why" style="margin-bottom:0;">Overblikket viser alle medarbejderes svar samlet og er derfor adgangsbegrænset.</p>
+      <div class="gate-row">
+        <input type="password" id="admin-password" class="plain-input" placeholder="Adgangskode" autocomplete="off">
+        <button class="btn-primary" id="admin-submit" type="button">Log ind</button>
+      </div>
+      <p id="admin-error" class="admin-error" hidden>Forkert adgangskode – prøv igen.</p>
+    </div>
+
+    <div id="admin-content" hidden>
+      <span class="intro-eyebrow">Overblik</span>
+      <h2 class="intro-heading" style="margin-bottom:14px;">Alle ansvarsområder og opgaver</h2>
+      <p class="lede">Samlet overblik over alle indsendte ansvarsområder og opgaver på tværs af teamet – opdateres live, efterhånden som folk gemmer deres svar.</p>
+
+      <div class="stats">
+        <div class="stat"><div class="stat-value" id="stat-employees">0</div><div class="stat-label">Medarbejdere</div></div>
+        <div class="stat"><div class="stat-value" id="stat-areas">0</div><div class="stat-label">Ansvarsområder</div></div>
+        <div class="stat"><div class="stat-value" id="stat-tasks">0</div><div class="stat-label">Opgaver</div></div>
+        <div class="stat"><div class="stat-value" id="stat-flagged">0</div><div class="stat-label">AI-egnede opgaver</div></div>
+      </div>
+      <div class="controls-row">
+        <label class="filter-row">
+          <input type="checkbox" id="filter-flagged">
+          Vis kun AI-egnede opgaver
+        </label>
+        <div class="controls-right">
+          <div class="seg">
+            <button class="active" data-mode="list" type="button">Liste</button>
+            <button data-mode="tree" type="button">Træ</button>
+          </div>
+          <button class="btn-outline" id="export-btn" type="button">Eksportér til Excel</button>
+        </div>
+      </div>
+      <div id="employee-list"></div>
+      <div id="tree-view" hidden></div>
+      <div id="overview-empty" class="empty" hidden>Der er endnu ingen svar. Del denne fil/adresse med teamet, så alle kan udfylde deres ansvarsområder under fanen “Udfyld”.</div>
+
+      <div class="reset-zone">
+        <button class="btn-danger" id="reset-all-btn" type="button">Nulstil alle besvarelser</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
+  import {
+    getFirestore, doc, setDoc, getDoc, deleteDoc, collection, onSnapshot
+  } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+
+  // Adgangskode til overbliksfanen — hardcodet, skift den her hvis nødvendigt.
+  var ADMIN_PASSWORD = "Vicuras2026";
+  var isAdmin = false;
+  try { isAdmin = sessionStorage.getItem("vicuras-admin") === "1"; } catch(e){}
+
+  var firebaseConfig = {
+    apiKey: "AIzaSyBXVV_NkMIOehGh_DYllf0_eHHpv0hi6Bs",
+    authDomain: "vicuras-opgave-overblik.firebaseapp.com",
+    projectId: "vicuras-opgave-overblik",
+    storageBucket: "vicuras-opgave-overblik.firebasestorage.app",
+    messagingSenderId: "1006959868763",
+    appId: "1:1006959868763:web:370d8d4d4f0763f529f87e"
+  };
+
+  var app = initializeApp(firebaseConfig);
+  var db = getFirestore(app);
+
+  function uid(){
+    return (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()+Math.random())).slice(0,8);
+  }
+
+  function slugify(name){
+    var s = (name||"").toLowerCase().trim();
+    s = s.replace(/æ/g,"ae").replace(/ø/g,"oe").replace(/å/g,"aa");
+    s = s.normalize("NFD").replace(/[̀-ͯ]/g,"");
+    s = s.replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
+    return s || ("medarbejder-" + uid());
+  }
+
+  function blankTask(){ return { id: uid(), text:"", aiCandidate:false }; }
+  function blankArea(){ return { id: uid(), name:"", tasks:[ blankTask() ] }; }
+
+  var state = {
+    name: "",
+    areas: [ blankArea() ],
+    pristine: true
+  };
+
+  var els = {
+    tabs: document.querySelectorAll(".tab"),
+    viewFill: document.getElementById("view-fill"),
+    viewOverview: document.getElementById("view-overview"),
+    nameInput: document.getElementById("name-input"),
+    resumeNote: document.getElementById("resume-note"),
+    areas: document.getElementById("areas"),
+    addArea: document.getElementById("add-area"),
+    saveBtn: document.getElementById("save-btn"),
+    saveStatus: document.getElementById("save-status"),
+    connBanner: document.getElementById("conn-banner"),
+    filterFlagged: document.getElementById("filter-flagged"),
+    employeeList: document.getElementById("employee-list"),
+    treeView: document.getElementById("tree-view"),
+    segButtons: document.querySelectorAll(".seg button"),
+    exportBtn: document.getElementById("export-btn"),
+    overviewEmpty: document.getElementById("overview-empty"),
+    statEmployees: document.getElementById("stat-employees"),
+    statAreas: document.getElementById("stat-areas"),
+    statTasks: document.getElementById("stat-tasks"),
+    statFlagged: document.getElementById("stat-flagged"),
+    adminGate: document.getElementById("admin-gate"),
+    adminContent: document.getElementById("admin-content"),
+    adminPassword: document.getElementById("admin-password"),
+    adminSubmit: document.getElementById("admin-submit"),
+    adminError: document.getElementById("admin-error"),
+    resetBtn: document.getElementById("reset-all-btn")
+  };
+
+  /* ---------- Admin login (local, hardcoded — gates the overview tab) ---------- */
+  function showOverview(){
+    if (isAdmin){
+      els.adminGate.hidden = true;
+      els.adminContent.hidden = false;
+      subscribeOverview();
+    } else {
+      els.adminGate.hidden = false;
+      els.adminContent.hidden = true;
+    }
+  }
+
+  function tryAdminLogin(){
+    if (els.adminPassword.value === ADMIN_PASSWORD){
+      isAdmin = true;
+      try { sessionStorage.setItem("vicuras-admin", "1"); } catch(e){}
+      els.adminError.hidden = true;
+      els.adminPassword.value = "";
+      showOverview();
+    } else {
+      els.adminError.hidden = false;
+    }
+  }
+  els.adminSubmit.addEventListener("click", tryAdminLogin);
+  els.adminPassword.addEventListener("keydown", function(e){
+    if (e.key === "Enter") tryAdminLogin();
+  });
+
+  /* ---------- Tabs ---------- */
+  els.tabs.forEach(function(tab){
+    tab.addEventListener("click", function(){
+      els.tabs.forEach(function(t){ t.classList.remove("active"); });
+      tab.classList.add("active");
+      var view = tab.getAttribute("data-view");
+      els.viewFill.hidden = view !== "fill";
+      els.viewOverview.hidden = view !== "overview";
+      if (view === "overview") showOverview();
+    });
+  });
+
+  /* ---------- Fill-out rendering ---------- */
+  function renderAreas(){
+    els.areas.innerHTML = "";
+    state.areas.forEach(function(area, ai){
+      var areaEl = document.createElement("div");
+      areaEl.className = "card area";
+      areaEl.dataset.id = area.id;
+
+      var head = document.createElement("div");
+      head.className = "area-head";
+
+      var idx = document.createElement("span");
+      idx.className = "area-index";
+      idx.textContent = (ai+1) + ".";
+      head.appendChild(idx);
+
+      var nameInput = document.createElement("input");
+      nameInput.type = "text";
+      nameInput.className = "area-name";
+      nameInput.placeholder = "Navngiv ansvarsområdet, fx Kundeservice eller Fakturering";
+      nameInput.value = area.name;
+      nameInput.addEventListener("input", function(){
+        area.name = nameInput.value;
+        markDirty();
+      });
+      head.appendChild(nameInput);
+
+      if (state.areas.length > 1){
+        var removeArea = document.createElement("button");
+        removeArea.type = "button";
+        removeArea.className = "icon-btn";
+        removeArea.setAttribute("aria-label","Fjern ansvarsområde");
+        removeArea.textContent = "✕";
+        removeArea.addEventListener("click", function(){
+          state.areas = state.areas.filter(function(a){ return a.id !== area.id; });
+          markDirty();
+          renderAreas();
+        });
+        head.appendChild(removeArea);
+      }
+      areaEl.appendChild(head);
+
+      var tasksLabel = document.createElement("div");
+      tasksLabel.className = "tasks-label";
+      tasksLabel.textContent = "Opgaver under dette område ↓";
+      areaEl.appendChild(tasksLabel);
+
+      var tasksEl = document.createElement("div");
+      tasksEl.className = "tasks";
+
+      area.tasks.forEach(function(task){
+        tasksEl.appendChild(renderTaskRow(area, task));
+      });
+      areaEl.appendChild(tasksEl);
+
+      var addTask = document.createElement("button");
+      addTask.type = "button";
+      addTask.className = "add-task";
+      addTask.textContent = "+ Tilføj opgave";
+      addTask.addEventListener("click", function(){
+        area.tasks.push(blankTask());
+        markDirty();
+        renderAreas();
+      });
+      areaEl.appendChild(addTask);
+
+      els.areas.appendChild(areaEl);
+    });
+  }
+
+  function renderTaskRow(area, task){
+    var row = document.createElement("div");
+    row.className = "task";
+    row.dataset.id = task.id;
+
+    var textInput = document.createElement("input");
+    textInput.type = "text";
+    textInput.className = "task-text";
+    textInput.placeholder = "Beskriv opgaven konkret, fx Besvare standardspørgsmål på mail";
+    textInput.value = task.text;
+    textInput.addEventListener("input", function(){
+      task.text = textInput.value;
+      markDirty();
+    });
+    row.appendChild(textInput);
+
+    var label = document.createElement("label");
+    label.className = "ai-check" + (task.aiCandidate ? " on" : "");
+    var checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = !!task.aiCandidate;
+    checkbox.title = "Denne opgave kan AI-optimeres eller overtages";
+    checkbox.addEventListener("change", function(){
+      task.aiCandidate = checkbox.checked;
+      label.classList.toggle("on", task.aiCandidate);
+      markDirty();
+    });
+    label.appendChild(checkbox);
+    label.appendChild(document.createTextNode("AI kan overtage"));
+    row.appendChild(label);
+
+    if (area.tasks.length > 1){
+      var removeTask = document.createElement("button");
+      removeTask.type = "button";
+      removeTask.className = "icon-btn";
+      removeTask.setAttribute("aria-label","Fjern opgave");
+      removeTask.textContent = "✕";
+      removeTask.addEventListener("click", function(){
+        area.tasks = area.tasks.filter(function(t){ return t.id !== task.id; });
+        markDirty();
+        renderAreas();
+      });
+      row.appendChild(removeTask);
+    }
+
+    return row;
+  }
+
+  function markDirty(){
+    state.pristine = false;
+    els.saveStatus.textContent = "Ikke gemt";
+  }
+
+  els.addArea.addEventListener("click", function(){
+    state.areas.push(blankArea());
+    markDirty();
+    renderAreas();
+  });
+
+  renderAreas();
+
+  /* ---------- Name + resume from shared database ---------- */
+  var savedName = "";
+  try { savedName = localStorage.getItem("vicuras-tasks-name") || ""; } catch(e){}
+  if (savedName){ els.nameInput.value = savedName; state.name = savedName; }
+
+  var loadTimer = null;
+  els.nameInput.addEventListener("input", function(){
+    state.name = els.nameInput.value;
+    try { localStorage.setItem("vicuras-tasks-name", state.name); } catch(e){}
+    clearTimeout(loadTimer);
+    loadTimer = setTimeout(maybeLoadExisting, 500);
+  });
+
+  function maybeLoadExisting(){
+    if (!state.pristine || !state.name.trim()) return;
+    var slug = slugify(state.name);
+    getDoc(doc(db, "responses", slug)).then(function(snap){
+      if (!snap.exists() || !state.pristine) return;
+      var data = snap.data();
+      if (!data || !data.areas || !data.areas.length) return;
+      state.areas = data.areas.map(function(a){
+        return {
+          id: a.id || uid(),
+          name: a.name || "",
+          tasks: (a.tasks && a.tasks.length ? a.tasks : [blankTask()]).map(function(t){
+            return { id: t.id || uid(), text: t.text || "", aiCandidate: !!(t.aiCandidate || t.tedious || t.repetitive) };
+          })
+        };
+      });
+      renderAreas();
+      els.resumeNote.hidden = false;
+      els.saveStatus.textContent = "Hentet fra dit tidligere svar";
+    }).catch(function(){});
+  }
+
+  if (state.name) maybeLoadExisting();
+
+  /* ---------- Save ---------- */
+  els.saveBtn.addEventListener("click", function(){
+    var name = state.name.trim();
+    if (!name){
+      els.saveStatus.textContent = "Skriv dit navn før du gemmer";
+      els.nameInput.focus();
+      return;
+    }
+    var cleanedAreas = state.areas
+      .map(function(a){
+        return {
+          id: a.id,
+          name: a.name.trim(),
+          tasks: a.tasks
+            .filter(function(t){ return t.text.trim(); })
+            .map(function(t){ return { id:t.id, text:t.text.trim(), aiCandidate:!!t.aiCandidate }; })
+        };
+      })
+      .filter(function(a){ return a.name || a.tasks.length; });
+
+    if (!cleanedAreas.length){
+      els.saveStatus.textContent = "Tilføj mindst ét ansvarsområde med en opgave";
+      return;
+    }
+
+    var payload = {
+      name: name,
+      areas: cleanedAreas,
+      updatedAt: new Date().toISOString()
+    };
+    var slug = slugify(name);
+    els.saveBtn.disabled = true;
+    els.saveStatus.textContent = "Gemmer …";
+    setDoc(doc(db, "responses", slug), payload).then(function(){
+      state.pristine = false;
+      els.saveStatus.textContent = "Gemt ✓";
+    }).catch(function(err){
+      els.saveStatus.textContent = "Kunne ikke gemme – prøv igen";
+      console.error(err);
+    }).finally(function(){
+      els.saveBtn.disabled = false;
+    });
+  });
+
+  /* ---------- Overview (live, shared via Firestore) ---------- */
+  var latestDocs = [];
+  var overviewSubscribed = false;
+
+  function subscribeOverview(){
+    if (overviewSubscribed){ renderOverview(); return; }
+    overviewSubscribed = true;
+    onSnapshot(collection(db, "responses"), function(snap){
+      latestDocs = snap.docs.map(function(d){
+        var data = d.data();
+        if (!data) return null;
+        data.__id = d.id;
+        return data;
+      }).filter(Boolean);
+      renderOverview();
+    }, function(err){
+      overviewSubscribed = false;
+      els.connBanner.hidden = false;
+      els.connBanner.innerHTML = "<strong>Kunne ikke hente overblikket.</strong> Tjek at Firestore-sikkerhedsreglerne tillader læsning, og prøv at genindlæse siden.";
+      console.error(err);
+    });
+  }
+
+  els.filterFlagged.addEventListener("change", renderOverview);
+
+  function isAi(t){ return !!(t.aiCandidate || t.tedious || t.repetitive); }
+
+  var viewMode = "list";
+  els.segButtons.forEach(function(btn){
+    btn.addEventListener("click", function(){
+      els.segButtons.forEach(function(b){ b.classList.remove("active"); });
+      btn.classList.add("active");
+      viewMode = btn.getAttribute("data-mode");
+      els.employeeList.hidden = viewMode !== "list";
+      els.treeView.hidden = viewMode !== "tree";
+    });
+  });
+
+  function renderOverview(){
+    var docs = latestDocs.slice().sort(function(a,b){
+      return (a.name||"").localeCompare(b.name||"", "da");
+    });
+
+    var totalAreas = 0, totalTasks = 0, totalFlagged = 0;
+    var onlyFlagged = els.filterFlagged.checked;
+
+    els.employeeList.innerHTML = "";
+    els.treeView.innerHTML = "";
+
+    var treeRootUl = document.createElement("ul");
+
+    docs.forEach(function(person){
+      var areas = person.areas || [];
+      var visibleAreaBlocks = [];
+      var empTaskCount = 0, empAiCount = 0;
+
+      areas.forEach(function(area){
+        totalAreas++;
+        var tasks = area.tasks || [];
+        var visibleTasks = [];
+        tasks.forEach(function(t){
+          totalTasks++;
+          empTaskCount++;
+          var flagged = isAi(t);
+          if (flagged){ totalFlagged++; empAiCount++; }
+          if (onlyFlagged && !flagged) return;
+          visibleTasks.push(t);
+        });
+        if (visibleTasks.length) visibleAreaBlocks.push({ area: area, tasks: visibleTasks });
+      });
+
+      if (!(onlyFlagged && !visibleAreaBlocks.length)){
+        var card = document.createElement("details");
+        card.className = "card emp-card";
+        if (onlyFlagged && visibleAreaBlocks.length) card.open = true;
+
+        var summary = document.createElement("summary");
+        var head = document.createElement("div");
+        head.className = "emp-head";
+        var h3 = document.createElement("h3");
+        h3.textContent = person.name || "Uden navn";
+        head.appendChild(h3);
+        var meta = document.createElement("span");
+        meta.className = "emp-meta";
+        var when = "";
+        try { when = person.updatedAt ? new Date(person.updatedAt).toLocaleString("da-DK",{dateStyle:"short",timeStyle:"short"}) : ""; } catch(e){}
+        meta.textContent = areas.length + " ansvarsområde" + (areas.length===1?"":"r") +
+          " · " + empTaskCount + " opgaver" + (empAiCount ? " · " + empAiCount + " AI-egnet" : "") +
+          (when ? " · opdateret " + when : "");
+        head.appendChild(meta);
+        summary.appendChild(head);
+
+        var chips = document.createElement("div");
+        chips.className = "area-chips";
+        areas.forEach(function(a){
+          var chip = document.createElement("span");
+          chip.className = "area-chip";
+          chip.textContent = a.name || "Uden navn";
+          chips.appendChild(chip);
+        });
+        summary.appendChild(chips);
+        card.appendChild(summary);
+
+        var body = document.createElement("div");
+        body.className = "emp-card-body";
+
+        var blocksToRender = onlyFlagged ? visibleAreaBlocks : areas.map(function(a){ return { area:a, tasks:a.tasks||[] }; });
+
+        blocksToRender.forEach(function(block){
+          var areaWrap = document.createElement("div");
+          areaWrap.className = "ov-area";
+          var h4 = document.createElement("h4");
+          h4.textContent = block.area.name || "Uden navn";
+          areaWrap.appendChild(h4);
+
+          var ul = document.createElement("ul");
+          ul.className = "ov-tasks";
+          block.tasks.forEach(function(t){
+            var flagged = isAi(t);
+            var li = document.createElement("li");
+            li.className = "ov-task" + (flagged ? " flagged" : "");
+            var span = document.createElement("span");
+            span.className = "ov-task-text";
+            span.textContent = t.text;
+            li.appendChild(span);
+            if (flagged){
+              var badges = document.createElement("span");
+              badges.className = "badges";
+              var b1 = document.createElement("span");
+              b1.className = "badge pink";
+              b1.textContent = "AI-egnet";
+              badges.appendChild(b1);
+              li.appendChild(badges);
+            }
+            ul.appendChild(li);
+          });
+          areaWrap.appendChild(ul);
+          body.appendChild(areaWrap);
+        });
+
+        card.appendChild(body);
+        els.employeeList.appendChild(card);
+      }
+
+      /* ---- tree branch for this employee ---- */
+      var areaBlocksForTree = onlyFlagged ? visibleAreaBlocks : areas.map(function(a){ return { area:a, tasks:a.tasks||[] }; });
+      if (!(onlyFlagged && !areaBlocksForTree.length)){
+        var empLi = document.createElement("li");
+        var empDetails = document.createElement("details");
+        empDetails.open = true;
+        var empSummary = document.createElement("summary");
+        empSummary.className = "node-emp";
+        empSummary.innerHTML = escapeHtml(person.name || "Uden navn") +
+          ' <span class="count">· ' + areas.length + " områder, " + empTaskCount + " opgaver" +
+          (empAiCount ? ", " + empAiCount + " AI-egnede" : "") + "</span>";
+        empDetails.appendChild(empSummary);
+
+        var areaUl = document.createElement("ul");
+        areaBlocksForTree.forEach(function(block){
+          var areaLi = document.createElement("li");
+          var areaDetails = document.createElement("details");
+          areaDetails.open = true;
+          var areaSummary = document.createElement("summary");
+          areaSummary.className = "node-area";
+          var aiInArea = block.tasks.filter(isAi).length;
+          areaSummary.innerHTML = escapeHtml(block.area.name || "Uden navn") +
+            ' <span class="count">· ' + block.tasks.length + " opgaver" +
+            (aiInArea ? ", " + aiInArea + " AI-egnede" : "") + "</span>";
+          areaDetails.appendChild(areaSummary);
+
+          var taskUl = document.createElement("ul");
+          block.tasks.forEach(function(t){
+            var flagged = isAi(t);
+            var taskLi = document.createElement("li");
+            var taskDiv = document.createElement("div");
+            taskDiv.className = "tree-task" + (flagged ? " flagged" : "");
+            var dot = document.createElement("span");
+            dot.className = "dot";
+            taskDiv.appendChild(dot);
+            var txt = document.createElement("span");
+            txt.textContent = t.text + (flagged ? " · AI-egnet" : "");
+            taskDiv.appendChild(txt);
+            taskLi.appendChild(taskDiv);
+            taskUl.appendChild(taskLi);
+          });
+          areaDetails.appendChild(taskUl);
+          areaLi.appendChild(areaDetails);
+          areaUl.appendChild(areaLi);
+        });
+        empDetails.appendChild(areaUl);
+        empLi.appendChild(empDetails);
+        treeRootUl.appendChild(empLi);
+      }
+    });
+
+    var treeWrap = document.createElement("div");
+    treeWrap.className = "tree-root tree";
+    var rootLabel = document.createElement("span");
+    rootLabel.className = "tree-root-label";
+    rootLabel.textContent = "Hele teamet";
+    treeWrap.appendChild(rootLabel);
+    treeWrap.appendChild(treeRootUl);
+    els.treeView.appendChild(treeWrap);
+
+    els.statEmployees.textContent = docs.length;
+    els.statAreas.textContent = totalAreas;
+    els.statTasks.textContent = totalTasks;
+    els.statFlagged.textContent = totalFlagged;
+    els.overviewEmpty.hidden = docs.length > 0;
+    els.exportBtn.disabled = docs.length === 0;
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c];
+    });
+  }
+
+  /* ---------- Export til Excel (rigtig .xlsx via SheetJS, undgår CSV-encoding/kolonne-problemer) ---------- */
+  els.exportBtn.addEventListener("click", function(){
+    var docs = latestDocs.slice();
+    if (!docs.length) return;
+    var rows = [["Medarbejder","Ansvarsområde","Opgave","AI-egnet"]];
+    docs.forEach(function(person){
+      (person.areas||[]).forEach(function(area){
+        (area.tasks||[]).forEach(function(t){
+          rows.push([person.name||"", area.name||"", t.text||"", isAi(t) ? "Ja" : "Nej"]);
+        });
+      });
+    });
+    if (typeof XLSX === "undefined"){
+      var prevLabel = els.exportBtn.textContent;
+      els.exportBtn.textContent = "Kunne ikke indlæse Excel-eksport – tjek internetforbindelsen";
+      setTimeout(function(){ els.exportBtn.textContent = prevLabel; }, 4000);
+      return;
+    }
+    var ws = XLSX.utils.aoa_to_sheet(rows);
+    ws["!cols"] = [{ wch:22 }, { wch:22 }, { wch:55 }, { wch:10 }];
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Opgavekortlægning");
+    XLSX.writeFile(wb, "opgavekortlaegning.xlsx");
+  });
+
+  /* ---------- Nulstil alle besvarelser (admin) — tryk to gange for at bekræfte ---------- */
+  var resetArmed = false;
+  var resetDefaultLabel = "Nulstil alle besvarelser";
+  els.resetBtn.addEventListener("click", function(){
+    if (!resetArmed){
+      resetArmed = true;
+      els.resetBtn.textContent = "Sikker? Tryk igen for at slette alt";
+      setTimeout(function(){
+        resetArmed = false;
+        els.resetBtn.textContent = resetDefaultLabel;
+      }, 4000);
+      return;
+    }
+    resetArmed = false;
+    var docs = latestDocs.slice();
+    if (!docs.length){
+      els.resetBtn.textContent = resetDefaultLabel;
+      return;
+    }
+    els.resetBtn.disabled = true;
+    els.resetBtn.textContent = "Sletter …";
+    Promise.all(docs.map(function(person){
+      return deleteDoc(doc(db, "responses", person.__id || slugify(person.name || "")));
+    })).then(function(){
+      els.resetBtn.textContent = resetDefaultLabel;
+      els.resetBtn.disabled = false;
+    }).catch(function(err){
+      console.error(err);
+      els.resetBtn.textContent = "Kunne ikke slette – prøv igen";
+      els.resetBtn.disabled = false;
+    });
+  });
+
+  /* ---------- Boot ---------- */
+  renderOverview();
+</script>
 </body>
 </html>
